@@ -1,0 +1,86 @@
+version: '3.8'
+
+# ==============================================================================
+# Production Multi-Service Architecture with YAML Anchors
+# ==============================================================================
+
+x-logging-template: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+x-environment-common: &common-env
+  ENVIRONMENT: production
+  LOG_LEVEL: INFO
+  METRICS_ENABLED: "true"
+
+networks:
+  frontend-tier:
+    driver: bridge
+  backend-tier:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+services:
+  web:
+    image: teachcloud/backend:v1.0.0
+    restart: always
+    environment:
+      <<: *common-env
+      PORT: 8000
+      DATABASE_URL: postgresql://appuser:secretpass@postgres:5432/teachcloud_db
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    networks:
+      - frontend-tier
+      - backend-tier
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: teachcloud_db
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: secretpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-tier
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d teachcloud_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-tier
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging

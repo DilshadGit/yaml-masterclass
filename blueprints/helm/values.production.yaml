@@ -1,0 +1,33 @@
+replicaCount: 5
+
+image:
+  repository: ghcr.io/dilshadgit/teachcloud-backend
+  pullPolicy: IfNotPresent
+  tag: "1.2.0"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.teachcloud.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: teachcloud-api-tls
+      hosts:
+        - api.teachcloud.io
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 80
